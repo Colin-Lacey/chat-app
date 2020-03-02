@@ -13,6 +13,7 @@ app.get('/', function(req, res){
 io.on('connection', function(socket){
   users.push('User' + userIndex) ;
   socket.nickname = users[userIndex] ;
+  socket.rgb = '#000000';
   userIndex = userIndex + 1;
   socket.emit('message history', messages);
   io.emit('update user list', users);
@@ -20,8 +21,18 @@ io.on('connection', function(socket){
 
 io.on('connection', function(socket){
     socket.on('chat message', function(msg){
-      const temp = msg.substring(0,5)
-      if (temp === '/nick') {
+      const rgbCheck = msg.substring(0,4);
+      const nickCheck = msg.substring(0,5);
+      if (rgbCheck === '/rgb') {
+        let regex = new RegExp('^(?:[A-Fa-f0-9]{6})$');
+        let newRGB = msg.substring(5);
+        let validRGB = regex.test(newRGB);
+        console.log(validRGB);
+        if (validRGB) {
+          socket.rgb = '#'+newRGB;
+        }
+      }
+      if (nickCheck === '/nick') {
         var newNick = msg.substring(6) ;
         if (!(users.includes(newNick))) {
           users.push(newNick) ;
@@ -36,7 +47,7 @@ io.on('connection', function(socket){
         }
       }
       let current_time = moment().format("HH:mm");
-      io.emit('chat message', current_time + ' ' + socket.nickname + ': ' + msg ) ;
+      io.emit('chat message', current_time + ' ' + socket.nickname + ': ' + msg, socket.rgb) ;
       messages.push(current_time + ' ' + socket.nickname + ': ' + msg);
     });
     socket.on('disconnect', function () {

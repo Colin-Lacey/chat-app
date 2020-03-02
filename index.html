@@ -4,7 +4,7 @@
         <title>Socket.IO chat</title>
         <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background-color:rgb(130, 224, 255); 13px Helvetica, Arial; }
+        body { background-color:rgb(130, 224, 255); font: 13px Helvetica, Arial; }
         form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
         form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
         form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
@@ -28,8 +28,8 @@
                 $('#m').val('');
                 return false;
             });
-            socket.on('chat message', function(msg){
-                $('#messages').append($('<li>').text(msg));
+            socket.on('chat message', function(msg, hexColour){
+                $('#messages').append($('<li>').css('color', hexColour).text(msg + ' ' + hexColour));
                 scrollToBottom();
             });
             socket.on('message history',function(msg) {
