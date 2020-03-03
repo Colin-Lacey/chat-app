@@ -28,8 +28,12 @@
                 $('#m').val('');
                 return false;
             });
-            socket.on('chat message', function(msg, hexColour){
-                $('#messages').append($('<li>').css('color', hexColour).text(msg + ' ' + hexColour));
+            socket.on('chat message', function(msg, hexColour, sentBySelf,users){
+                if (sentBySelf) {
+                    $('#messages').append($('<li>').append($('<b>').css('color', hexColour).text(msg)));
+                } else {
+                    $('#messages').append($('<li>').css('color', hexColour).text(msg));
+                }
                 scrollToBottom();
             });
             socket.on('message history',function(msg) {
@@ -38,9 +42,11 @@
                 });
                 scrollToBottom();
             });
-            socket.on('user disconnect', function(user) {
-                $('#messages').append($('<li>').text(user + " disconnected"));
-                scrollToBottom();
+            socket.on('update user list', function(users) {
+                $('#users').empty();
+                users.forEach(user => {
+                    $('#users').append($('<li>').text(user))
+                });
             });
             function scrollToBottom() {
                 let messages = document.getElementById("messagebox");
