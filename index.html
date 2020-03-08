@@ -1,25 +1,29 @@
 <!doctype html>
 <html>
     <head>
-        <title>Socket.IO chat</title>
+        <title>LaceyChat</title>
         <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background-color:rgb(130, 224, 255); font: 13px Helvetica, Arial; }
-        form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+        body { background-color: #202225; font: 13px Helvetica, Arial; }
+        form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; height: 50px}
         form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
+        #submitform { padding-top: 5px; margin-top: 5px;}
         form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
-        #messagebox { background-color: white; overflow-y: auto; position:fixed; left: 1vw; bottom:5vh; border: 2px solid black; height: 91vh; width: 78vw;}
-        #userbox { background-color: white; overflow-y: auto; position:fixed; left: 80vw; bottom:5vh; border: 2px solid black; height: 91vh; width: 19vw;}
-        #messages { overflow-y: auto; list-style-type: none; margin: 0px; padding: 0px; bottom:0px; position: relative;}
-        #messages li { padding: 5px 10px; bottom:0px; }
-        #messages li:nth-child(odd) { background: #eee; }
+        #messagebox { display: flex; flex-direction: column-reverse; background-color: #31343B; overflow-y: auto; position:fixed;  bottom: 60px; border: none; top: 50px; width: 78vw;}
+        #userbox { min-width: 200px; font-size: 2rem; color: #DCDDDE; background-color: #31343B; overflow-y: auto; position:fixed; left: 80vw; bottom:60px; border: none; top: 50px; width: 19vw; display: inline; word-wrap: break-word;}
+        #messages { font-size: 2rem; color: #DCDDDE; display: flex; flex-direction: column-reverse; overflow-y: scroll; list-style-type: none; margin: 0px; padding: 0px; }
+        #messages li { display: flex; flex-direction: column-reverse; padding: 5px 10px;  display: inline; word-wrap: break-word;}
+        #user-header { position:fixed; left: 10px;}
+        h1 { color:#107896; }
         </style>
     </head>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@beta/dist/js.cookie.min.js"></script>
     <script>
 
         $(function () {
+
             scrollToBottom();
             var socket = io();
             $('form').submit(function(e){
@@ -28,25 +32,45 @@
                 $('#m').val('');
                 return false;
             });
-            socket.on('chat message', function(msg, hexColour, sentBySelf,users){
+            socket.on('chat message', function(timestamp, nick, msg, hexColour, sentBySelf){
                 if (sentBySelf) {
-                    $('#messages').append($('<li>').append($('<b>').css('color', hexColour).text(msg)));
+                    $('#messages').prepend($('<li>' + timestamp + ' <b><span style="color:' + hexColour + ';">' + nick + '</span>:').append('<b>: ' + msg));
                 } else {
-                    $('#messages').append($('<li>').css('color', hexColour).text(msg));
+                    $('#messages').prepend($('<li>' + timestamp + ' <span style="color:' + hexColour + ';">' + nick + '</span>:').append(': ' + msg));
                 }
                 scrollToBottom();
             });
             socket.on('message history',function(msg) {
                 msg.forEach(element => {
-                    $('#messages').append($('<li>').text(element))
+                    $('#messages').prepend($('<li>').text(element))
                 });
                 scrollToBottom();
             });
             socket.on('update user list', function(users) {
                 $('#users').empty();
-                users.forEach(user => {
+                users.forEach(function(user) {
                     $('#users').append($('<li>').text(user))
                 });
+            });
+            socket.on('checkIfNewUser', function() {
+                if (Cookies.get('user') === undefined) socket.emit('confirmIfNewUser',true)
+                else socket.emit('confirmIfNewUser',false);
+            });
+            socket.on('getCookies', function(){
+                user = Cookies.get('user');
+                rgb = Cookies.get('rgb');
+                socket.emit('returnCookies',user,rgb);
+            });
+            socket.on('setCookies',function(user,rgb){
+                Cookies.set('user', user);
+                Cookies.set('rgb', rgb);
+            });
+            socket.on('admin message',function(msg) {
+                $('#messages').prepend('<li style="color:#107896">' + msg);
+            });
+            socket.on('update user header',function(user,rgb){
+                $('#user-header').empty();
+                $('#user-header').text(user).css('color', rgb);
             });
             function scrollToBottom() {
                 let messages = document.getElementById("messagebox");
@@ -63,13 +87,15 @@
         
     </script>
     <body>
+        <h1 id='user-header'></h1>
         <div id = 'messagebox'>
             <ul id="messages"><li></li></ul>
         </div>
         <div id ='userbox'>
+            <h1>Users</h1>
             <ul id='users'><li></li></ul>
         </div>
-        <div id = 'submit-form' >
+        <div id = 'submitform' >
             <form action="">
             <input id="m" autocomplete="off" /><button>Send</button>
             </form>

@@ -2,7 +2,7 @@ var app = require('express')();
 var http = require('http').createServer(app);
 var io = require('socket.io')(http);
 var moment = require('moment') ;
-let users = [];
+const users = new Set();
 const messages = [];
 var userIndex = 0;
 
@@ -11,13 +11,32 @@ app.get('/', function(req, res){
 });
 
 io.on('connection', function(socket){
-  users.push('User' + userIndex) ;
-  socket.nickname = users[userIndex] ;
-  socket.rgb = '#000000';
-  socket.index = userIndex;
-  userIndex = userIndex + 1;
+  socket.emit('checkIfNewUser');
+  socket.on('confirmIfNewUser', function(isNewUser){
+    if (isNewUser) {
+      users.add('User' + userIndex) ;
+      socket.nickname = ('User' + userIndex) ;
+      socket.rgb = '#DCDDDE';
+      socket.emit('setCookies',socket.nickname,socket.rgb);
+      userIndex = userIndex + 1;
+      console.log(socket.nickname);
+      socket.emit('update user header',socket.nickname, socket.rgb);
+    } else {
+      socket.emit('getCookies')
+      socket.on('returnCookies', function(user,rgb){
+        users.add(user) ;
+        socket.nickname = user ;
+        socket.rgb = rgb;
+        let msgUsers = Array.from(users);
+        io.emit('update user list', msgUsers);
+        socket.emit('update user header',socket.nickname, socket.rgb);
+      });
+    }
+  });
+  
   socket.emit('message history', messages);
-  io.emit('update user list', users);
+  let msgUsers = Array.from(users);
+  io.emit('update user list', msgUsers);
 });
 
 io.on('connection', function(socket){
@@ -28,47 +47,75 @@ io.on('connection', function(socket){
         let regex = new RegExp('^(?:[A-Fa-f0-9]{6})$');
         let newRGB = msg.substring(5);
         let validRGB = regex.test(newRGB);
-        console.log(validRGB);
         if (validRGB) {
           socket.rgb = '#'+newRGB;
+          socket.emit('setCookies',socket.nickname,socket.rgb);
+          socket.emit('update user header',socket.nickname, socket.rgb);
+        } else {
+          let current_time = moment().format("HH:mm");
+          socket.emit('chat message', current_time , socket.nickname, msg, socket.rgb, true);
+          socket.broadcast.emit('chat message', current_time , socket.nickname, msg, socket.rgb, false);
+          socket.emit('admin message', 'Sorry ' + socket.nickname + ', invalid rgb value!')
+          return;
         }
       }
       if (nickCheck === '/nick') {
         var newNick = msg.substring(6) ;
-        if (!(users.includes(newNick))) {
-          users[socket.index] = newNick;
-          socket.nickname = newNick ;
+        if (newNick.length > 15){
+          let current_time = moment().format("HH:mm");
+          socket.emit('chat message', current_time , socket.nickname, msg, socket.rgb, true);
+          socket.broadcast.emit('chat message', current_time , socket.nickname, msg, socket.rgb, false);
+          messages.push(current_time + ' ' + socket.nickname + ': ' + msg);
+          messages.push('Sorry ' + socket.nickname + ', nickname must be 15 characters or less!');
+          io.emit('admin message', 'Sorry ' + socket.nickname + ', nickname must be 15 characters or less!') ;
+          return;
+        }
+        if (!(users.has(newNick))) {
+          users.delete(socket.nickname);
+          socket.nickname = newNick;
+          users.add(socket.nickname);
+          let msgUsers = Array.from(users);
+          io.emit('update user list', msgUsers);
+          socket.emit('setCookies',socket.nickname,socket.rgb);
+          socket.emit('update user header',socket.nickname, socket.rgb);
         } else {
           let current_time = moment().format("HH:mm");
-          io.emit('chat message', current_time + ' ' + socket.nickname + ': ' + msg ) ;
-          io.emit('chat message', 'Sorry ' + socket.nickname + ', that nickname already exits!') ;
+          socket.emit('chat message', current_time , socket.nickname, msg, socket.rgb, true);
+          socket.broadcast.emit('chat message', current_time , socket.nickname, msg, socket.rgb, false);
+          io.emit('admin message', 'Sorry ' + socket.nickname + ', that nickname already exits!') ;
           messages.push(current_time + ' ' + socket.nickname + ': ' + msg);
           messages.push('Sorry ' + socket.nickname + ', that nickname already exits!');
           return;
         }
+      } else if (msg[0] === '/' && rgbCheck != '/rgb') {
+        let current_time = moment().format("HH:mm");
+        socket.emit('chat message', current_time , socket.nickname, msg, socket.rgb, true);
+        socket.broadcast.emit('chat message', current_time , socket.nickname, msg, socket.rgb, false);
+        messages.push(current_time + ' ' + socket.nickname + ': ' + msg);
+        io.emit('admin message', 'Unrecognized command. Accepted commands: /nick , /rgb');
+        messages.push('Unrecognized command. Accepted commands: /nick , /rgb');
+        return;
       }
       let current_time = moment().format("HH:mm");
-      // sending to the client
-      socket.emit('chat message', current_time + ' ' + socket.nickname + ': ' + msg, socket.rgb, true);
-      // sending to all clients except sender
-      socket.broadcast.emit('chat message', current_time + ' ' + socket.nickname + ': ' + msg, socket.rgb, false);
-      //io.emit('chat message', current_time + ' ' + socket.nickname + ': ' + msg, socket.rgb, socket.nickname) ;
+      socket.emit('chat message', current_time , socket.nickname, msg, socket.rgb, true);
+      socket.broadcast.emit('chat message', current_time , socket.nickname, msg, socket.rgb, false);
       messages.push(current_time + ' ' + socket.nickname + ': ' + msg);
-      io.emit('update user list', users);
+      console.log(users);
     });
     socket.on('disconnect', function () {
-      console.log('got disconnect ' + socket.nickname);
-      delete users[socket.index];
-      io.emit('update user list', users);
-
+      users.delete(socket.nickname);
+      let msgUsers = Array.from(users);
+      io.emit('update user list', msgUsers);
     });
 });
 
 io.on('connection', function(socket) {
   socket.on('send-nickname', function(nickname) {
+    users.delete(socket.nickname);
     socket.nickname = nickname;
-    users.push(socket.nickname);
-    console.log(users);
+    users.add(socket.nickname);
+    let msgUsers = Array.from(users);
+    io.emit('update user list', msgUsers);
   });
 });
 
